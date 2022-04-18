@@ -116,7 +116,7 @@ class Crawler:
 
     def parse_state(self, page, meta=None):
         """Parser for country page"""
-        print(meta)
+        print(f"Scraping '{meta['name']}'")
         infobox = page.xpath("//table[contains(@class, 'infobox')]")[0]
         data = {
             "country": meta['name'],
@@ -125,15 +125,40 @@ class Crawler:
             "government": extract_label_from_infobox(infobox, "Government"),
             "area": next(iter(extract_merged_label_from_infobox(infobox, "Area ")), None),
             "population": next(iter(extract_merged_label_from_infobox(infobox, "Population")), None),
+            "president": next(iter(extract_label_from_infobox(infobox, "President")), None),
+            "vp": next(iter(extract_label_from_infobox(infobox, "Vice President")), None),
+            "pm": next(iter(extract_label_from_infobox(infobox, "Prime Minister")), None),
+            # Different name for prime minister
+            "premier": next(iter(extract_label_from_infobox(infobox, "Premier")), None),
         }
         if data["area"]:
             data["area"] = get_first_num(data["area"])
         if data["population"]:
             data["population"] = get_first_num(data["population"])
 
+        if data["president"]:
+            self.enqueue_page(
+                create_wiki_url(data["president"]),
+                handler=self.parse_person,
+                meta={"role": "president", "name": data["president"]}
+            )
+        if data["pm"]:
+            self.enqueue_page(
+                create_wiki_url(data["pm"]),
+                handler=self.parse_person,
+                meta={"role": "pm", "name": data["pm"]}
+            )
+        if data["premier"]:
+            self.enqueue_page(
+                create_wiki_url(data["premier"]),
+                handler=self.parse_person,
+                meta={"role": "pm",
+                      "name": data["premier"], "country": meta["name"]}
+            )
 
     def parse_person(self, page, meta=None):
         """Parser for person (president/PM)"""
+        pass
 
 
 def create():
