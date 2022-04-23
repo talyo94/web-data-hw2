@@ -2,6 +2,7 @@ from queue import Queue
 import queue
 import sys
 from typing import Any, Callable
+from webbrowser import BackgroundBrowser
 import requests
 import lxml.html
 import re
@@ -25,6 +26,16 @@ def get_first_num(s: str):
 def extract_label_from_infobox(table, label: str):
     text = table.xpath(f"./tbody/tr[th//text()='{label}']/td//text()")
     return list(filter(lambda x: x and x[0].isalpha(), text))
+
+
+def extract_link_from_infobox(table, label: str):
+    """Extract next wiki link"""
+    href = table.xpath(f"./tbody/tr[th//text()='{label}']/td/a/@href")
+    link = next(filter(lambda x: x.startswith("/wiki"), href), None)
+    if link is None:
+        return None
+
+    return create_wiki_url(link.replace("/wiki/", ""))
 
 
 def extract_merged_label_from_infobox(table, label: str):
@@ -62,8 +73,13 @@ class Crawler:
 
         while not self.queue.empty():
             task = self.queue.get()
-            page = self.download_page(task['url'])
-            task['handler'](page, task.get("meta"))
+            try:
+                page = self.download_page(task['url'])
+                task['handler'](page, task.get("meta"))
+            except Exception as e:
+                print("Error running task:", task["url"])
+                print(e)
+        print(f"Visited {len(self.visited)} pages")
 
     def download_page(self, url: str):
         """download a url and returned the parsed lxml.html string
@@ -116,7 +132,8 @@ class Crawler:
 
     def parse_state(self, page, meta=None):
         """Parser for country page"""
-        print(f"Scraping '{meta['name']}'")
+        print("Parsing", meta)
+
         infobox = page.xpath("//table[contains(@class, 'infobox')]")[0]
         data = {
             "country": meta['name'],
@@ -138,19 +155,24 @@ class Crawler:
 
         if data["president"]:
             self.enqueue_page(
-                create_wiki_url(data["president"]),
+                extract_link_from_infobox(
+                    infobox, "President") or create_wiki_url(data["president"]),
                 handler=self.parse_person,
-                meta={"role": "president", "name": data["president"]}
+                meta={"role": "president",
+                      "name": data["president"], "country": meta["name"]}
             )
         if data["pm"]:
             self.enqueue_page(
-                create_wiki_url(data["pm"]),
+                extract_link_from_infobox(
+                    infobox, "Prime Minister") or create_wiki_url(data["pm"]),
                 handler=self.parse_person,
-                meta={"role": "pm", "name": data["pm"]}
+                meta={"role": "pm",
+                      "name": data["pm"], "country": meta["name"]}
             )
         if data["premier"]:
             self.enqueue_page(
-                create_wiki_url(data["premier"]),
+                extract_link_from_infobox(
+                    infobox, "Primier") or create_wiki_url(data["premier"]),
                 handler=self.parse_person,
                 meta={"role": "pm",
                       "name": data["premier"], "country": meta["name"]}
@@ -158,7 +180,29 @@ class Crawler:
 
     def parse_person(self, page, meta=None):
         """Parser for person (president/PM)"""
-        pass
+        print("Parsing", meta)
+        infobox = page.xpath("//table[contains(@class, 'infobox')]")[0]
+        born = infobox.xpath(f"./tbody/tr[th//text()='Born']/td")
+        try:
+            bcountry = born[0].xpath(".//text()")[-1]
+            bcountry = re.sub(r"[\(\),\.]", "", bcountry)
+            bcountry = bcountry.strip()
+            if bcountry.startswith(","):
+                bcountry = re.findall(r"\w+", bcountry)[0]
+            if not bcountry and meta["country"] in "".join(born[0].xpath(".//text()")):
+                bcountry = meta["country"]
+        except:
+            bcountry = None
+        bday = next(iter(infobox.xpath("//span[@class='bday']/text()")), None)
+
+        data = {
+            "name": meta["name"],
+            "role": meta["role"],
+            "bday": bday,
+            "bcountry": bcountry,
+        }
+
+        print(data)
 
 
 def create():
