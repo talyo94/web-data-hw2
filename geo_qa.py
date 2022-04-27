@@ -3,11 +3,16 @@ import queue
 import sys
 from typing import Any, Callable
 from webbrowser import BackgroundBrowser
+import rdflib
 import requests
 import lxml.html
 import re
+from rdflib import URIRef, Literal
+from rdflib.namespace import FOAF, DCTERMS, XSD, RDF, SDO
 
 DOMAIN = "http://example.org/"
+global list_of_countries
+list_of_countries = set()
 
 
 def get_first_num(s: str):
@@ -60,8 +65,25 @@ def create_wiki_url(name: str):
     return f"https://en.wikipedia.org/wiki/{name}"
 
 
+def create_base_graph():
+    global g, president_of, prime_minister_of, capital_of, type_government_of, area_of, population_of, vp_of, pm_of, birth_day, has_the_role_of, birth_place
+    g = rdflib.Graph()
+    president_of = URIRef('https://dbpedia.org/ontology/president')
+    prime_minister_of = URIRef('https://dbpedia.org/ontology/PrimeMinister')
+    capital_of = URIRef('https://dbpedia.org/ontology/capital')
+    type_government_of = URIRef('https://dbpedia.org/ontology/governmentType')
+    area_of = URIRef('https://dbpedia.org/ontology/PopulatedPlace/area')
+    population_of = URIRef('https://dbpedia.org/property/populationCensus')
+    vp_of = URIRef('https://dbpedia.org/ontology/VicePresident')
+    pm_of = URIRef('https://dbpedia.org/ontology/PrimeMinister')
+    birth_day = URIRef('https://dbpedia.org/ontology/birthDate')
+    has_the_role_of = URIRef('https://dbpedia.org/ontology/role')
+    birth_place = URIRef('https://dbpedia.org/ontology/birthPlace')
+
+
 class Crawler:
     start_url = "https://en.wikipedia.org/wiki/List_of_countries_by_population_(United_Nations)"
+    create_base_graph()
 
     def __init__(self) -> None:
         self.queue = Queue()
@@ -79,6 +101,8 @@ class Crawler:
             except Exception as e:
                 print("Error running task:", task["url"])
                 print(e)
+            # page = self.download_page(task['url'])
+            # task['handler'](page, task.get("meta"))
         print(f"Visited {len(self.visited)} pages")
 
     def download_page(self, url: str):
@@ -133,7 +157,7 @@ class Crawler:
     def parse_state(self, page, meta=None):
         """Parser for country page"""
         print("Parsing", meta)
-
+        president_name = None
         infobox = page.xpath("//table[contains(@class, 'infobox')]")[0]
         data = {
             "country": meta['name'],
@@ -161,6 +185,8 @@ class Crawler:
                 meta={"role": "president",
                       "name": data["president"], "country": meta["name"]}
             )
+            president_name = data["president"].replace(' ', '_')
+            pres = True
         if data["pm"]:
             self.enqueue_page(
                 extract_link_from_infobox(
@@ -169,6 +195,8 @@ class Crawler:
                 meta={"role": "pm",
                       "name": data["pm"], "country": meta["name"]}
             )
+            president_name = data["pm"].replace(' ', '_')
+            pres = False
         if data["premier"]:
             self.enqueue_page(
                 extract_link_from_infobox(
@@ -177,6 +205,44 @@ class Crawler:
                 meta={"role": "pm",
                       "name": data["premier"], "country": meta["name"]}
             )
+            president_name = data["premier"].replace(' ', '_')
+            pres = False
+        country_name = data["country"].replace(' ', '_')
+        country_name = country_name.capitalize()
+        list_of_countries.add(country_name)
+        country = rdflib.URIRef('https://dbpedia.org/page/' + country_name)
+        if president_name not in (None, "None"):
+            president_name = president_name.capitalize()
+            president = rdflib.URIRef('https://dbpedia.org/page/' + president_name)
+        else:
+            president = None
+        population = data["population"]
+        area = data["area"]
+        vp = data["vp"]
+        capital = Literal(data["capital"])
+        government = data["government"]
+        if president not in (None, "None"):
+            if pres:
+                g.add((president, president_of, country))
+            else:
+                g.add((president, prime_minister_of, country))
+        if population not in (None, "None"):
+            population = Literal(data["population"])
+            g.add((country, population_of, population))
+        if area not in (None, "None"):
+            area = Literal(data["area"])
+            g.add((country, area_of, area))
+        if vp not in (None, "None"):
+            vp = Literal(data["vp"])
+            g.add((country, vp_of, vp))
+        if capital not in (None, "None"):
+            g.add((country, capital_of, capital))
+        if government not in (None, "None"):
+            for i in government:
+                gov = i.replace(' ', '_')
+                gov = gov.capitalize()
+                gov = rdflib.URIRef('https://dbpedia.org/page/' + gov)
+                g.add((country, type_government_of, gov))
 
     def parse_person(self, page, meta=None):
         """Parser for person (president/PM)"""
@@ -197,10 +263,30 @@ class Crawler:
 
         data = {
             "name": meta["name"],
-            "role": meta["role"],
+            "role": meta["role"],  # why we need this?
             "bday": bday,
             "bcountry": bcountry,
         }
+        president_name = data["name"].replace(' ', '_')
+        president_name = president_name.capitalize()
+        president = rdflib.URIRef('https://dbpedia.org/page/' + president_name)
+        role = data["role"]
+        bday = data["bday"]
+        b_country = data["bcountry"]
+        if role not in (None, "None"):
+            if (data["role"] == "president"):  # redundant
+                g.add((president, has_the_role_of, president_of))
+            else:
+                g.add((president, has_the_role_of, prime_minister_of))
+        if bday not in (None, "None"):
+            bday = Literal(data["bday"], datatype=XSD.date)
+            g.add((president, birth_day, bday))
+        if b_country not in (None, "None"):
+            b_country = Literal(data["bcountry"]).replace(' ', '_')
+            b_country = b_country.capitalize()
+            if b_country in list_of_countries:
+                b_country = rdflib.URIRef('https://dbpedia.org/page/' + b_country)
+                g.add((president, birth_place, b_country))
 
         print(data)
 
@@ -208,6 +294,7 @@ class Crawler:
 def create():
     c = Crawler()
     c.run()
+    g.serialize("graph.nt", format="nt")
 
 
 def qna():
