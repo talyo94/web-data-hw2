@@ -5,12 +5,21 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Python: Current File",
+      "name": "Create",
       "type": "python",
       "request": "launch",
       "program": "${cwd}/geo_qa.py",
       "console": "integratedTerminal",
       "args": ["create"],
+      "python": "/usr/local/bin/python3"
+    },
+    {
+      "name": "Question",
+      "type": "python",
+      "request": "launch",
+      "program": "${cwd}/geo_qa.py",
+      "console": "integratedTerminal",
+      "args": ["question", "Who is the president of Israel?"],
       "python": "/usr/local/bin/python3"
     }
   ]
