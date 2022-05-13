@@ -1,3 +1,4 @@
+from typing import Union
 import re
 import sys
 from queue import Queue
@@ -38,6 +39,16 @@ def format_name_to_ont(string: str) -> str:
 
 def format_name_from_ont(string: str) -> str:
     return string.rpartition("/")[-1].replace("_", " ")
+
+
+def add_to_graph(a: Union[str, URIRef], b: Union[str, URIRef], c: Union[str, URIRef]):
+    if not isinstance(a, URIRef):
+        a = URIRef(DBPEDIA_BASE + format_name_to_ont(a))
+    if not isinstance(b, URIRef):
+        b = URIRef(DBPEDIA_BASE + format_name_to_ont(b))
+    if not isinstance(c, URIRef):
+        c = URIRef(DBPEDIA_BASE + format_name_to_ont(c))
+    g.add((a, b, c))
 
 
 def get_first_num(s: str):
@@ -161,13 +172,9 @@ class Crawler:
                 {"name": name, "href": href}
             )
 
-            if name == "Mexico":
-                break
-
     def parse_state(self, page, meta=None):
         """Parser for country page"""
         print("Parsing", meta)
-        president_name = None
         infobox = page.xpath("//table[contains(@class, 'infobox')]")[0]
         data = {
             "country": meta['name'],
@@ -187,6 +194,10 @@ class Crawler:
         if data["population"]:
             data["population"] = get_first_num(data["population"])
 
+        country_name = format_name_to_ont(data["country"])
+        country = rdflib.URIRef(DBPEDIA_BASE + country_name)
+        list_of_countries.add(country_name)
+
         if data["president"]:
             self.enqueue_page(
                 extract_link_from_infobox(
@@ -195,8 +206,8 @@ class Crawler:
                 meta={"role": "president",
                       "name": data["president"], "country": meta["name"]}
             )
-            president_name = format_name_to_ont(data["president"])
-            pres = True
+            add_to_graph(data["president"], president_of, country)
+
         if data["pm"]:
             self.enqueue_page(
                 extract_link_from_infobox(
@@ -205,8 +216,8 @@ class Crawler:
                 meta={"role": "pm",
                       "name": data["pm"], "country": meta["name"]}
             )
-            president_name = format_name_to_ont(data["pm"])
-            pres = False
+            add_to_graph(data["pm"], prime_minister_of, country)
+
         if data["premier"]:
             self.enqueue_page(
                 extract_link_from_infobox(
@@ -215,26 +226,14 @@ class Crawler:
                 meta={"role": "pm",
                       "name": data["premier"], "country": meta["name"]}
             )
-            president_name = format_name_to_ont(data["premier"])
-            pres = False
-        country_name = format_name_to_ont(data["country"])
-        list_of_countries.add(country_name)
-        country = rdflib.URIRef(DBPEDIA_BASE + country_name)
-        if president_name not in (None, "None"):
-            president_name = format_name_to_ont(president_name)
-            president = rdflib.URIRef(DBPEDIA_BASE + president_name)
-        else:
-            president = None
+            add_to_graph(data["premier"], prime_minister_of, country)
+
         population = data["population"]
         area = data["area"]
         vp = data["vp"]
         capital = Literal(data["capital"])
         government = data["government"]
-        if president not in (None, "None"):
-            if pres:
-                g.add((president, president_of, country))
-            else:
-                g.add((president, prime_minister_of, country))
+
         if population not in (None, "None"):
             population = Literal(data["population"])
             g.add((country, population_of, population))
