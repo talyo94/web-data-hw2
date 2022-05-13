@@ -406,6 +406,19 @@ def answer(question_num: int, params: dict):
         if len(ent):
             print(format_name_from_ont(ent[0][0]))
 
+    elif question_num == 2:
+        country = format_name_to_ont(params["country"])
+
+        q = (
+            "SELECT ?x WHERE {"
+            f"<{DBPEDIA_BASE + country}> <{population_of}> ?x ."
+            "}"
+        )
+
+        ent = list(graph.query(q))
+
+        if len(ent):
+            print("{:,}".format(int(format_name_from_ont(ent[0][0]))))
     # ALL THE WAY...
     return ans
 
