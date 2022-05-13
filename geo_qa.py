@@ -15,10 +15,10 @@ from rdflib.namespace import DCTERMS, FOAF, RDF, SDO, XSD
 DOMAIN = "http://example.org/"
 global list_of_countries
 list_of_countries = set()
+DBPEDIA_BASE = "https://dbpedia.org/page/"
 
+# Graph Relations
 g = rdflib.Graph()
-
-# Relations
 president_of = URIRef('https://dbpedia.org/ontology/president')
 prime_minister_of = URIRef('https://dbpedia.org/ontology/PrimeMinister')
 capital_of = URIRef('https://dbpedia.org/ontology/capital')
@@ -34,6 +34,10 @@ birth_place = URIRef('https://dbpedia.org/ontology/birthPlace')
 
 def format_name_to_ont(string: str) -> str:
     return string.title().replace(" ", "_")
+
+
+def format_name_from_ont(string: str) -> str:
+    return string.rpartition("/")[-1].replace("_", " ")
 
 
 def get_first_num(s: str):
@@ -157,6 +161,9 @@ class Crawler:
                 {"name": name, "href": href}
             )
 
+            if name == "Mexico":
+                break
+
     def parse_state(self, page, meta=None):
         """Parser for country page"""
         print("Parsing", meta)
@@ -212,11 +219,10 @@ class Crawler:
             pres = False
         country_name = format_name_to_ont(data["country"])
         list_of_countries.add(country_name)
-        country = rdflib.URIRef('https://dbpedia.org/page/' + country_name)
+        country = rdflib.URIRef(DBPEDIA_BASE + country_name)
         if president_name not in (None, "None"):
             president_name = format_name_to_ont(president_name)
-            president = rdflib.URIRef(
-                'https://dbpedia.org/page/' + president_name)
+            president = rdflib.URIRef(DBPEDIA_BASE + president_name)
         else:
             president = None
         population = data["population"]
@@ -243,7 +249,7 @@ class Crawler:
         if government not in (None, "None"):
             for i in government:
                 gov = format_name_to_ont(i)
-                gov = rdflib.URIRef('https://dbpedia.org/page/' + gov)
+                gov = rdflib.URIRef(DBPEDIA_BASE + gov)
                 g.add((country, type_government_of, gov))
 
     def parse_person(self, page, meta=None):
@@ -273,7 +279,7 @@ class Crawler:
         }
         president_name = format_name_to_ont(data["name"])
         president_name = format_name_to_ont(president_name)
-        president = rdflib.URIRef('https://dbpedia.org/page/' + president_name)
+        president = rdflib.URIRef(DBPEDIA_BASE + president_name)
         role = data["role"]
         bday = data["bday"]
         b_country = data["bcountry"]
@@ -289,7 +295,7 @@ class Crawler:
             b_country = Literal(format_name_to_ont(data["bcountry"]))
             if b_country in list_of_countries:
                 b_country = rdflib.URIRef(
-                    'https://dbpedia.org/page/' + b_country)
+                    DBPEDIA_BASE + b_country)
                 g.add((president, birth_place, b_country))
 
         print(data)
@@ -372,8 +378,21 @@ def answer(question_num: int, params: dict):
     print("The params are:", params)
     graph = load_graph()
     ans = ""
+
     if question_num == 0:  # Who is the president of
-        pass
+        country = format_name_to_ont(params["country"])
+
+        q = (
+            "SELECT ?x WHERE {"
+            f"?x <{president_of}> <{DBPEDIA_BASE + country}> ."
+            "}"
+        )
+
+        ent = list(graph.query(q))
+
+        if len(ent):
+            print(format_name_from_ont(ent[0][0]))
+
     elif question_num == 1:
         pass
 
@@ -385,10 +404,9 @@ def qna(question: str):
     for idx, q in enumerate(QUESTIONS):
         match = re.match(q['pattern'], question)
         if match:
-            ans = answer(idx, match.groupdict())
-            print(ans)
+            answer(idx, match.groupdict())
             return
-    print("Don't know...")
+    print("Don't know what question it is...")
 
 
 if __name__ == "__main__":
