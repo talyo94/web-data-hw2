@@ -19,7 +19,10 @@
       "request": "launch",
       "program": "${cwd}/geo_qa.py",
       "console": "integratedTerminal",
-      "args": ["question", "Who is the president of Israel?"],
+      "args": [
+        "question",
+        "What is the capital of Saint Helena, Ascension and Tristan da Cunha?"
+      ],
       "python": "/usr/local/bin/python3"
     }
   ]
