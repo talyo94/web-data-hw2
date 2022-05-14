@@ -417,15 +417,11 @@ def load_graph() -> rdflib.Graph:
 def answer(question_num: int, params: dict):
     graph = load_graph()
 
-    val = list(params.values())
-    subs = val[0]
-    for i in range(len(val)):
-        val[i] = adjust_str(val[i])
-    country = DBPEDIA_BASE + val[0]
-    entity = DBPEDIA_BASE + val[0]
-    if (len(params) > 1):
-        gf1 = DBPEDIA_BASE + val[0].strip()
-        gf2 = DBPEDIA_BASE + val[1].strip()
+    # val = list(params.values())
+    # for i in range(len(val)):
+    #     val[i] = adjust_str(val[i])
+
+    # country = DBPEDIA_BASE + val[0]
 
     if question_num == 0:  # Who is the president of
         country = format_name_to_ont(params["country"])
@@ -510,6 +506,7 @@ def answer(question_num: int, params: dict):
             f"?pm <{birth_day}> ?bd ."
             " }"
         )
+
     elif question_num == 9:  # Where was the prime minister of <country> born?
         country = format_name_to_ont(params["country"])
 
@@ -519,6 +516,7 @@ def answer(question_num: int, params: dict):
             f"?pm <{birth_place}> ?bd ."
             " }"
         )
+
     elif question_num == 10:
         entity = DBPEDIA_BASE + format_name_to_ont(params["entity"])
         q = (
@@ -546,6 +544,7 @@ def answer(question_num: int, params: dict):
             f"filter contains(lcase(?capital), '{params['str'].lower()}') "
             " }"
         )
+
     elif question_num == 13:
         country = format_name_to_ont(params["country"])
         q = (
