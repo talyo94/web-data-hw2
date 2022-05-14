@@ -11,9 +11,9 @@ from rdflib import URIRef, Literal
 from rdflib.namespace import FOAF, DCTERMS, XSD, RDF, SDO
 
 DOMAIN = "http://example.org/"
-global list_of_countries
+global list_of_countries, pre
 list_of_countries = set()
-
+pre = "https://dbpedia.org/page/"
 
 def get_first_num(s: str):
     # some numbers are in the format: xxx.xxx.xxx
@@ -66,7 +66,7 @@ def create_wiki_url(name: str):
 
 
 def create_base_graph():
-    global g, president_of, prime_minister_of, capital_of, type_government_of, area_of, population_of, vp_of, pm_of, birth_day, has_the_role_of, birth_place
+    global g, president_of, prime_minister_of, capital_of, type_government_of, area_of, population_of, vp_of, birth_day, has_the_role_of, birth_place
     g = rdflib.Graph()
     president_of = URIRef('https://dbpedia.org/ontology/president')
     prime_minister_of = URIRef('https://dbpedia.org/ontology/PrimeMinister')
@@ -75,7 +75,6 @@ def create_base_graph():
     area_of = URIRef('https://dbpedia.org/ontology/PopulatedPlace/area')
     population_of = URIRef('https://dbpedia.org/property/populationCensus')
     vp_of = URIRef('https://dbpedia.org/ontology/VicePresident')
-    pm_of = URIRef('https://dbpedia.org/ontology/PrimeMinister')
     birth_day = URIRef('https://dbpedia.org/ontology/birthDate')
     has_the_role_of = URIRef('https://dbpedia.org/ontology/role')
     birth_place = URIRef('https://dbpedia.org/ontology/birthPlace')
@@ -158,6 +157,7 @@ class Crawler:
         """Parser for country page"""
         print("Parsing", meta)
         president_name = None
+        pm_name = None
         infobox = page.xpath("//table[contains(@class, 'infobox')]")[0]
         data = {
             "country": meta['name'],
@@ -195,8 +195,7 @@ class Crawler:
                 meta={"role": "pm",
                       "name": data["pm"], "country": meta["name"]}
             )
-            president_name = data["pm"].replace(' ', '_')
-            pres = False
+            pm_name = data["pm"].replace(' ', '_')
         if data["premier"]:
             self.enqueue_page(
                 extract_link_from_infobox(
@@ -205,28 +204,30 @@ class Crawler:
                 meta={"role": "pm",
                       "name": data["premier"], "country": meta["name"]}
             )
-            president_name = data["premier"].replace(' ', '_')
-            pres = False
+            pm_name = data["premier"].replace(' ', '_')
         country_name = data["country"].replace(' ', '_')
         country_name = country_name.capitalize()
         list_of_countries.add(country_name)
         country = rdflib.URIRef('https://dbpedia.org/page/' + country_name)
         if president_name not in (None, "None"):
             president_name = president_name.capitalize()
-            president = rdflib.URIRef(
-                'https://dbpedia.org/page/' + president_name)
+            president = rdflib.URIRef('https://dbpedia.org/page/' + president_name)
         else:
             president = None
+        if pm_name not in (None, "None"):
+            pm_name = pm_name.capitalize()
+            pm = rdflib.URIRef('https://dbpedia.org/page/' + pm_name)
+        else:
+            pm = None
         population = data["population"]
         area = data["area"]
         vp = data["vp"]
         capital = Literal(data["capital"])
         government = data["government"]
         if president not in (None, "None"):
-            if pres:
-                g.add((president, president_of, country))
-            else:
-                g.add((president, prime_minister_of, country))
+            g.add((president, president_of, country))
+        if pm not in (None, "None"):
+            g.add((pm, prime_minister_of, country))
         if population not in (None, "None"):
             population = Literal(data["population"])
             g.add((country, population_of, population))
@@ -264,7 +265,7 @@ class Crawler:
 
         data = {
             "name": meta["name"],
-            "role": meta["role"],  # why we need this?
+            "role": meta["role"],
             "bday": bday,
             "bcountry": bcountry,
         }
@@ -286,8 +287,7 @@ class Crawler:
             b_country = Literal(data["bcountry"]).replace(' ', '_')
             b_country = b_country.capitalize()
             if b_country in list_of_countries:
-                b_country = rdflib.URIRef(
-                    'https://dbpedia.org/page/' + b_country)
+                b_country = rdflib.URIRef('https://dbpedia.org/page/' + b_country)
                 g.add((president, birth_place, b_country))
 
         print(data)
@@ -298,6 +298,9 @@ def create():
     c.run()
     g.serialize("graph.nt", format="nt")
 
+def adjust_str(s):
+    s = s.replace(' ', '_')
+    return s.capitalize()
 
 QUESTIONS = [
     # Q1
@@ -360,25 +363,83 @@ QUESTIONS = [
 
 
 def answer(question_num: int, params: dict):
+    question_num +=1
     print("The question num is:", question_num)
     print("The params are:", params)
-
+    val = list(params.values())
+    for i in range (len(val)):
+        val[i] = adjust_str(val[i])
+    country = pre + val[0]
+    entity = pre + val[0]
+    if (len(params)>1):
+        gf1 = pre + val[0]
+        gf2 = pre + val[1]
     ans = ""
     if question_num == 0:
         pass
     elif question_num == 1:
         pass
+    elif question_num == 2:
+        pass
+    elif question_num == 3:
+        pass
+    elif question_num == 4:
+        pass
+    elif question_num == 5:
+        pass
+    elif question_num == 6:
+        pass
+    elif question_num == 7:
+        q = "SELECT ?y WHERE " \
+            "{ ?x <" + president_of + "> <" + country + "> ." \
+                                                        " ?x <" + birth_day + "> ?y " \
+                                                                              "}"
+    elif question_num == 8:
+        q = "SELECT ?y WHERE " \
+            "{ ?x <" + president_of + "> <" + country + "> ." \
+                                                        " ?x <" + birth_place + "> ?y " \
+                                                                                "}"
+    elif question_num == 9:
+        q = "SELECT ?y WHERE " \
+            "{ ?x <" + prime_minister_of + "> <" + country + "> ." \
+                                                             " ?x <" + birth_day + "> ?y " \
+                                                                                   "}"
+    elif question_num == 10:
+        q = "SELECT ?y WHERE " \
+            "{ ?x <" + prime_minister_of + "> <" + country + "> ." \
+                                                             " ?x <" + birth_place + "> ?y " \
+                                                                                     "}"
+    elif question_num == 11:
+        q = "SELECT ?x ?y WHERE " \
+            "{ <" + entity + "> <" + has_the_role_of + "> ?x ." \
+                                                       " <" + entity + "> <" + president_of + "> ?y .}"
+    elif question_num == 12:
+        q = "SELECT ?y WHERE { ?y <" + type_government_of + "> <" + gf1 + "> . ?y <" + type_government_of + "> <" + gf2 + "> .}"
+    elif question_num == 13:
+        pass
+    elif question_num == 14:
+        q = "SELECT ?y WHERE " \
+            "{ ?y <" + has_the_role_of + "> <" + president_of + "> ." \
+                                                                "?y <" + birth_place + "> <" + country + "> .}"
 
-    # ALL THE WAY...
-    return ans
+    x = g2.query(q)
+    if question_num in (7,8,9,10,11):
+        print(list(x))
+    if question_num in (12,14):
+        print(len(x))
+
+    # return ans
 
 
 def qna(question: str):
+    global g2
+    g2 = rdflib.Graph()
+    g2.parse("graph.nt", format="nt")
     for idx, q in enumerate(QUESTIONS):
         match = re.match(q['pattern'], question)
         if match:
             ans = answer(idx, match.groupdict())
-            print(ans)
+            # print(ans)
             return
     print("Don't know...")
 
@@ -397,3 +458,4 @@ if __name__ == "__main__":
     else:
         print("Unknown command", sys.argv[1])
         exit(1)
+
