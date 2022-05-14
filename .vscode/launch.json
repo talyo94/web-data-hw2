@@ -19,10 +19,7 @@
       "request": "launch",
       "program": "${cwd}/geo_qa.py",
       "console": "integratedTerminal",
-      "args": [
-        "question",
-        "What is the capital of Saint Helena, Ascension and Tristan da Cunha?"
-      ],
+      "args": ["question", "Who is the president of China?"],
       "python": "/usr/local/bin/python3"
     }
   ]

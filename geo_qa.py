@@ -34,7 +34,7 @@ birth_place = URIRef('https://dbpedia.org/ontology/birthPlace')
 
 
 def format_name_to_ont(string: str) -> str:
-    return string.title().replace(" ", "_")
+    return string.replace(" ", "_")
 
 
 def format_name_from_ont(string: str) -> str:
@@ -90,7 +90,7 @@ def extract_government_type_from_infobox(table):
 
 def extract_link_from_infobox(table, label: str):
     """Extract next wiki link"""
-    href = table.xpath(f"./tbody/tr[th//text()='{label}']/td/a/@href")
+    href = table.xpath(f"./tbody/tr[th//text()='{label}']/td//a/@href")
     link = next(filter(lambda x: x.startswith("/wiki"), href), None)
     if link is None:
         return None
@@ -98,13 +98,18 @@ def extract_link_from_infobox(table, label: str):
     return create_wiki_url(link.replace("/wiki/", ""))
 
 
-def extract_merged_label_from_infobox(table, label: str):
+def extract_merged_label_from_infobox(table, label: str, contains=False):
     """Merged labels are labels like populations etc.,
     Where the box have a title, matching label, and subvalues
     """
+
+    if contains:
+        predicate = f"contains(th//text(), '{label}')"
+    else:
+        predicate = f"th//text()='{label}'"
     text = table.xpath(
-        f"./tbody/tr[th//text()='{label}']/th/../following-sibling::tr[1]/td//text()")
-    return filter(lambda x: x and x != "\n", text)
+        f"./tbody/tr[{predicate}]/th/../following-sibling::tr[1]/td//text()")
+    return filter(lambda x: x and x not in ("\n", " "), text)
 
 
 def create_wiki_url(name: str):
@@ -180,7 +185,13 @@ class Crawler:
 
     def start_parser(self, page, meta=None):
         """Parser for first page (countries list)"""
-
+        # self.enqueue_page(
+        #     "https://en.wikipedia.org/wiki/Dominican_Republic",
+        #     self.parse_state,
+        #     {"name": "Dominican_Republic",
+        #         "href": "https://en.wikipedia.org/wiki/Dominican_Republic"}
+        # )
+        # return
         table = page.xpath('//table[contains(@class, "wikitable")]')[0]
         for a in table.xpath("//tr/td[1]/span/a"):
             name = a.xpath("@title")[0]
@@ -191,16 +202,19 @@ class Crawler:
                 {"name": name, "href": href}
             )
 
+            # if name == "Mexico":
+            #     break
+
     def parse_state(self, page, meta=None):
         """Parser for country page"""
-        print("Parsing", meta)
+        # print("Parsing", meta)
         infobox = page.xpath("//table[contains(@class, 'infobox')]")[0]
         data = {
             "country": meta['name'],
             "capital":  extract_link_from_infobox(infobox, "Capital"),
             # "largest_city": next(iter(extract_label_from_infobox(infobox, "Largest city")), None),
             "government": extract_government_type_from_infobox(infobox),
-            "area": next(iter(extract_merged_label_from_infobox(infobox, "Area ")), None),
+            "area": next(iter(extract_merged_label_from_infobox(infobox, "Area", True)), None),
             "population": next(iter(extract_merged_label_from_infobox(infobox, "Population")), None),
             "president": next(iter(extract_label_from_infobox(infobox, "President")), None),
             "vp": next(iter(extract_label_from_infobox(infobox, "Vice President")), None),
@@ -226,8 +240,10 @@ class Crawler:
                 extract_link_from_infobox(
                     infobox, "President") or create_wiki_url(data["president"]),
                 handler=self.parse_person,
-                meta={"role": "president",
-                      "name": data["president"], "country": meta["name"]}
+                meta={
+                    "role": "president",
+                    "name": data["president"], "country": meta["name"]
+                }
             )
             add_to_graph(data["president"], president_of, country)
 
@@ -275,7 +291,7 @@ class Crawler:
 
     def parse_person(self, page, meta=None):
         """Parser for person (president/PM)"""
-        print("Parsing", meta)
+        # print("Parsing", meta)
         infobox = page.xpath("//table[contains(@class, 'infobox')]")[0]
         born = infobox.xpath(f"./tbody/tr[th//text()='Born']/td")
         try:
@@ -286,6 +302,11 @@ class Crawler:
             bcountry = bcountry.strip()
             if bcountry.startswith(","):
                 bcountry = re.findall(r"\w+", bcountry)[0]
+            if bcountry == "US":
+                bcountry = "United_States"
+            if bcountry not in list_of_countries:
+                bcountry = next((x for x in list_of_countries if x in "".join(
+                    born[0].xpath(".//text()"))), None)
             if not bcountry and meta["country"] in "".join(born[0].xpath(".//text()")):
                 bcountry = meta["country"]
         except:
@@ -302,8 +323,6 @@ class Crawler:
         president_name = format_name_to_ont(president_name)
         president = rdflib.URIRef(DBPEDIA_BASE + president_name)
         role = data["role"]
-        bday = data["bday"]
-        b_country = data["bcountry"]
         if role not in (None, "None"):
             if (data["role"] == "president"):  # redundant
                 g.add((president, has_the_role_of, president_of))
@@ -312,14 +331,10 @@ class Crawler:
         if bday not in (None, "None"):
             bday = Literal(data["bday"], datatype=XSD.date)
             g.add((president, birth_day, bday))
-        if b_country not in (None, "None"):
-            b_country = Literal(format_name_to_ont(data["bcountry"]))
-            if b_country in list_of_countries:
-                b_country = rdflib.URIRef(
-                    DBPEDIA_BASE + b_country)
-                g.add((president, birth_place, b_country))
-
-        print(data)
+        if bcountry not in (None, "None"):
+            bcountry = rdflib.URIRef(
+                DBPEDIA_BASE + format_name_to_ont(data["bcountry"]))
+            g.add((president, birth_place, bcountry))
 
 
 def create():
@@ -400,21 +415,16 @@ def load_graph() -> rdflib.Graph:
 
 
 def answer(question_num: int, params: dict):
-    print("The question num is:", question_num, )
-    print("The params are:", params)
     graph = load_graph()
-    question_num += 1
-    print("The question num is:", question_num)
-    print("The params are:", params)
+
     val = list(params.values())
     for i in range(len(val)):
         val[i] = adjust_str(val[i])
-    country = pre + val[0]
-    entity = pre + val[0]
+    country = DBPEDIA_BASE + val[0]
+    entity = DBPEDIA_BASE + val[0]
     if (len(params) > 1):
-        gf1 = pre + val[0]
-        gf2 = pre + val[1]
-    ans = ""
+        gf1 = DBPEDIA_BASE + val[0].strip()
+        gf2 = DBPEDIA_BASE + val[1].strip()
 
     if question_num == 0:  # Who is the president of
         country = format_name_to_ont(params["country"])
@@ -425,11 +435,6 @@ def answer(question_num: int, params: dict):
             "}"
         )
 
-        ent = list(graph.query(q))
-
-        if len(ent):
-            print(format_name_from_ont(ent[0][0]))
-
     elif question_num == 1:
         country = format_name_to_ont(params["country"])
 
@@ -438,11 +443,6 @@ def answer(question_num: int, params: dict):
             f"?x <{prime_minister_of}> <{DBPEDIA_BASE + country}> ."
             "}"
         )
-
-        ent = list(graph.query(q))
-
-        if len(ent):
-            print(format_name_from_ont(ent[0][0]))
 
     elif question_num == 2:
         country = format_name_to_ont(params["country"])
@@ -453,11 +453,6 @@ def answer(question_num: int, params: dict):
             "}"
         )
 
-        ent = list(graph.query(q))
-
-        if len(ent):
-            print("{:,}".format(ent[0][0].toPython()))
-
     elif question_num == 3:
         country = format_name_to_ont(params["country"])
 
@@ -466,11 +461,6 @@ def answer(question_num: int, params: dict):
             f"<{DBPEDIA_BASE + country}> <{area_of}> ?x ."
             "}"
         )
-
-        ent = list(graph.query(q))
-
-        if len(ent):
-            print("{:,} km squared".format(ent[0][0].toPython()))
 
     elif question_num == 4:
         country = format_name_to_ont(params["country"])
@@ -481,9 +471,6 @@ def answer(question_num: int, params: dict):
             "}"
         )
 
-        ent = [format_name_from_ont(x[0]) for x in graph.query(q)]
-        print(", ".join(ent))
-
     elif question_num == 5:
         country = format_name_to_ont(params["country"])
 
@@ -492,11 +479,6 @@ def answer(question_num: int, params: dict):
             f"<{DBPEDIA_BASE + country}> <{capital_of}> ?x ."
             "}"
         )
-
-        ent = list(graph.query(q))
-
-        if len(ent):
-            print(format_name_from_ont(ent[0][0]))
 
     elif question_num == 6:
         country = format_name_to_ont(params["country"])
@@ -508,59 +490,94 @@ def answer(question_num: int, params: dict):
             " }"
         )
 
-        ent = list(graph.query(q))
+    elif question_num == 7:  # Where was the president of <country> born?
+        country = format_name_to_ont(params["country"])
 
-        if len(ent):
-            print(format_name_from_ont(ent[0][0]))
+        q = (
+            "SELECT ?bd WHERE {"
+            f"?president <{president_of}> <{DBPEDIA_BASE + country}> . "
+            f"?president <{birth_place}> ?bd ."
+            " }"
+        )
 
-    elif question_num == 7:
-        q = "SELECT ?y WHERE " \
-            "{ ?x <" + president_of + "> <" + country + "> ." \
-                                                        " ?x <" + birth_day + "> ?y " \
-                                                                              "}"
-    elif question_num == 7:
-        q = "SELECT ?y WHERE " \
-            "{ ?x <" + president_of + "> <" + country + "> ." \
-                                                        " ?x <" + birth_place + "> ?y " \
-                                                                                "}"
-    elif question_num == 8:
-        q = "SELECT ?y WHERE " \
-            "{ ?x <" + prime_minister_of + "> <" + country + "> ." \
-                                                             " ?x <" + birth_day + "> ?y " \
-                                                                                   "}"
-    elif question_num == 9:
-        q = "SELECT ?y WHERE " \
-            "{ ?x <" + prime_minister_of + "> <" + country + "> ." \
-                                                             " ?x <" + birth_place + "> ?y " \
-                                                                                     "}"
+    elif question_num == 8:  # When was the prime minister of <country> born?
+        country = format_name_to_ont(params["country"])
+
+        q = (
+            "SELECT ?bd WHERE {"
+            f"?pm <{prime_minister_of}> <{DBPEDIA_BASE + country}> . "
+            f"?pm <{birth_day}> ?bd ."
+            " }"
+        )
+    elif question_num == 9:  # Where was the prime minister of <country> born?
+        country = format_name_to_ont(params["country"])
+
+        q = (
+            "SELECT ?bd WHERE {"
+            f"?pm <{prime_minister_of}> <{DBPEDIA_BASE + country}> . "
+            f"?pm <{birth_place}> ?bd ."
+            " }"
+        )
     elif question_num == 10:
-        q = "SELECT ?x ?y WHERE " \
-            "{ <" + entity + "> <" + has_the_role_of + "> ?x ." \
-                                                       " <" + entity + "> <" + president_of + "> ?y .}"
+        entity = DBPEDIA_BASE + format_name_to_ont(params["entity"])
+        q = (
+            "SELECT ?role ?country WHERE {"
+            f"<{entity}> <{has_the_role_of}> ?role . "
+            f"<{entity}> ?role ?country"
+            " }"
+        )
+
     elif question_num == 11:
-        q = "SELECT ?y WHERE { ?y <" + type_government_of + "> <" + \
-            gf1 + "> . ?y <" + type_government_of + "> <" + gf2 + "> .}"
+        gf1 = format_name_to_ont(params["government_form1"])
+        gf2 = format_name_to_ont(params["government_form1"])
+
+        q = (
+            "SELECT ?y WHERE {"
+            f"?y <{type_government_of}> <{DBPEDIA_BASE + gf1}> . "
+            f"?y <{type_government_of}> <{DBPEDIA_BASE + gf2}> ."
+            " }"
+        )
+
     elif question_num == 12:
-        pass
+        q = (
+            "SELECT ?country WHERE {"
+            f"?country <{capital_of}> ?capital ; "
+            f"filter contains(lcase(?capital), '{params['str'].lower()}') "
+            " }"
+        )
     elif question_num == 13:
-        q = "SELECT ?y WHERE " \
-            "{ ?y <" + has_the_role_of + "> <" + president_of + "> ." \
-                                                                "?y <" + birth_place + "> <" + country + "> .}"
+        country = format_name_to_ont(params["country"])
+        q = (
+            "SELECT ?president WHERE {"
+            f"?president <{has_the_role_of}> <{president_of}> . "
+            f"?president <{birth_place}> <{DBPEDIA_BASE + country}>"
+            " }"
+        )
 
-    x = graph.query(q)
-
-    if 7 <= question_num <= 10:
-        print(list(x))
-    if question_num in (11, 13):
-        print(len(x))
-
-    # return ans
+    ent = list(graph.query(q))
+    if question_num in (0, 1, 5, 6, 7, 8, 9):
+        ans = str(format_name_from_ont(ent[0][0]))
+    elif question_num in (2,):
+        ans = "{:,}".format(ent[0][0].toPython())
+    elif question_num in (3,):
+        ans = "{:,} km squared".format(ent[0][0].toPython())
+    elif question_num in (4, 12):
+        x = [format_name_from_ont(x[0]) for x in ent]
+        x.sort()
+        ans = ", ".join(x)
+    elif question_num in (10,):
+        x = [
+            f"{format_name_from_ont(r).capitalize()} of {format_name_from_ont(c)}" for r, c in ent]
+        x.sort()
+        ans = ", ".join(x)
+    elif question_num in (11, 13):
+        ans = str(len(ent))
+    print("ANSWER:", ans)
 
 
 def qna(question: str):
-    global g2
-    g2 = rdflib.Graph()
-    g2.parse("graph.nt", format="nt")
+    question = question.strip()
+    question = re.sub(' +', ' ', question)
     for idx, q in enumerate(QUESTIONS):
         match = re.match(q['pattern'], question)
         if match:
@@ -569,17 +586,64 @@ def qna(question: str):
     print("Don't know what question it is...")
 
 
+qs = [
+    "Who is the president of China?",
+    "Who is the president of Portugal?",
+    "Who is the president of Guam?",
+    "Who is the prime minister of Eswatini?",
+    "Who is the prime minister of Tonga?",
+    "What is the population of Isle of Man?",
+    "What is the population of Tokelau?",
+    "What is the population of Djibouti?",
+    "What is the area of Mauritius?",
+    "What is the area of Luxembourg?",
+    "What is the area of Guadeloupe?",
+    "What is the form of government in Argentina?",
+    "What is the form of government in Sweden?",
+    "What is the form of government in Bahrain?",
+    "What is the form of government in North Macedonia?",
+    "What is the capital of Burundi?",
+    "What is the capital of Mongolia?",
+    "What is the capital of Andorra?",
+    "What is the capital of Saint Helena, Ascension and Tristan da Cunha?",
+    "What is the capital of Greenland?",
+    "List all countries whose capital name contains the string hi",
+    "List all countries whose capital name contains the string free",
+    "List all countries whose capital name contains the string alo",
+    "List all countries whose capital name contains the string baba",
+    "How many  Absolute monarchy are also Unitary state?",
+    "How many Dictatorship are also Presidential system?",
+    "How many Dictatorship are also Authoritarian?",
+    "How many presidents were born in Iceland? ",
+    "How many presidents were born in Republic of Ireland? ",
+    "When was the president of Fiji born?",
+    "When was the president of United States born?",
+    "Where was the president of Indonesia born?",
+    "Where was the president of Uruguay born?",
+    "Where was the prime minister of Solomon Islands born?",
+    "When was the prime minister of Lesotho born?",
+    "Who is Denis Sassou Nguesso?",
+    "Who is David Kabua?", ]
+
+
+def run_demo_questions():
+    for q in qs:
+        print("Q:", q)
+        qna(q)
+
+
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Invalid usage: python3 geo_qa (create|question) [params]")
-        exit(1)
-    if sys.argv[1] == "create":
-        create()
-    elif sys.argv[1] == "question":
-        if len(sys.argv) < 3:
-            print("Invalid usage: python3 geo_qa question (question)")
-            exit(1)
-        qna(sys.argv[2])
-    else:
-        print("Unknown command", sys.argv[1])
-        exit(1)
+    run_demo_questions()
+    # if len(sys.argv) < 2:
+    #     print("Invalid usage: python3 geo_qa (create|question) [params]")
+    #     exit(1)
+    # if sys.argv[1] == "create":
+    #     create()
+    # elif sys.argv[1] == "question":
+    #     if len(sys.argv) < 3:
+    #         print("Invalid usage: python3 geo_qa question (question)")
+    #         exit(1)
+    #     qna(sys.argv[2])
+    # else:
+    #     print("Unknown command", sys.argv[1])
+    #     exit(1)
