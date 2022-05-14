@@ -156,8 +156,6 @@ class Crawler:
     def parse_state(self, page, meta=None):
         """Parser for country page"""
         print("Parsing", meta)
-        if meta['name'] == "Japan" :
-            pres = True
         president_name = None
         pm_name = None
         infobox = page.xpath("//table[contains(@class, 'infobox')]")[0]
@@ -301,7 +299,7 @@ def create():
     g.serialize("graph.nt", format="nt")
 
 
-def qna():
+def Q9():
     g2 =rdflib.Graph()
     g2.parse("graph.nt", format="nt")
     country = "https://dbpedia.org/page/"
@@ -314,6 +312,88 @@ def qna():
     x = g2.query(q)
     print (list(x))
 
+QUESTIONS = [
+    # Q1
+    {
+        "pattern": r"Who is the president of (?P<country>.+)\?",
+    },
+    # Q2
+    {
+        "pattern": r"Who is the prime minister of (?P<country>.+)\?"
+    },
+    # Q3
+    {
+        "pattern": r"What is the population of (?P<country>.+)\?"
+    },
+    # Q4
+    {
+        "pattern": r"What is the area of (?P<country>.+)\?"
+    },
+    # Q5
+    {
+        "pattern": r"What is the form of government in (?P<country>.+)\?"
+    },
+    # Q6
+    {
+        "pattern": r"What is the capital of (?P<country>.+)\?"
+    },
+    # Q7
+    {
+        "pattern": r"When was the president of (?P<country>.+) born\?"
+    },
+    # Q8
+    {
+        "pattern": r"Where was the president of (?P<country>.+) born\?"
+    },
+    # Q9
+    {
+        "pattern": r"When was the prime minister of (?P<country>.+) born\?"
+    },
+    # Q10
+    {
+        "pattern": r"Where was the prime minister of (?P<country>.+) born\?"
+    },
+    # Q11
+    {
+        "pattern": r"Who is (?P<entity>.+)\?"
+    },
+    # Q12
+    {
+        "pattern": r"How many (?P<government_form1>.+) are also (?P<government_form2>.+)?\?"
+    },
+    # Q13
+    {
+        "pattern": r"List all countries whose capital name contains the string (?P<str>.+)"
+    },
+    # Q14
+    {
+        "pattern": r"How many presidents were born in (?P<country>.+)\?"
+    },
+]
+
+
+def answer(question_num: int, params: dict):
+    print("The question num is:", question_num)
+    print("The params are:", params)
+
+    ans = ""
+    if question_num == 0:
+        pass
+    elif question_num == 1:
+        pass
+
+    # ALL THE WAY...
+    return ans
+
+
+def qna(question: str):
+    for idx, q in enumerate(QUESTIONS):
+        match = re.match(q['pattern'], question)
+        if match:
+            ans = answer(idx, match.groupdict())
+            print(ans)
+            return
+    print("Don't know...")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -322,7 +402,10 @@ if __name__ == "__main__":
     if sys.argv[1] == "create":
         create()
     elif sys.argv[1] == "question":
-        qna()
+        if len(sys.argv) < 3:
+            print("Invalid usage: python3 geo_qa question (question)")
+            exit(1)
+        qna(sys.argv[2])
     else:
         print("Unknown command", sys.argv[1])
         exit(1)
