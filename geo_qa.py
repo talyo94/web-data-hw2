@@ -178,8 +178,10 @@ class Crawler:
         infobox = page.xpath("//table[contains(@class, 'infobox')]")[0]
         data = {
             "country": meta['name'],
+            # TODO: check    Saint Helena, Ascension and Tristan da Cunha
             "capital": next(iter(extract_label_from_infobox(infobox, "Capital")), None),
             # "largest_city": next(iter(extract_label_from_infobox(infobox, "Largest city")), None),
+            # TODO: fix extracting labels
             "government": extract_label_from_infobox(infobox, "Government"),
             "area": next(iter(extract_merged_label_from_infobox(infobox, "Area ")), None),
             "population": next(iter(extract_merged_label_from_infobox(infobox, "Population")), None),
@@ -419,7 +421,64 @@ def answer(question_num: int, params: dict):
 
         if len(ent):
             print("{:,}".format(int(format_name_from_ont(ent[0][0]))))
-    # ALL THE WAY...
+
+    elif question_num == 3:
+        # TODO: fix Luxembourg
+        country = format_name_to_ont(params["country"])
+
+        q = (
+            "SELECT ?x WHERE {"
+            f"<{DBPEDIA_BASE + country}> <{area_of}> ?x ."
+            "}"
+        )
+
+        ent = list(graph.query(q))
+
+        if len(ent):
+            print("{:,} km squared".format(
+                int(format_name_from_ont(ent[0][0]))))
+
+    elif question_num == 4:
+        country = format_name_to_ont(params["country"])
+
+        q = (
+            "SELECT ?x WHERE {"
+            f"<{DBPEDIA_BASE + country}> <{type_government_of}> ?x ."
+            "}"
+        )
+
+        ent = [format_name_from_ont(x[0]) for x in graph.query(q)]
+        print(", ".join(ent))
+
+    elif question_num == 5:
+        country = format_name_to_ont(params["country"])
+
+        q = (
+            "SELECT ?x WHERE {"
+            f"<{DBPEDIA_BASE + country}> <{capital_of}> ?x ."
+            "}"
+        )
+
+        ent = list(graph.query(q))
+
+        if len(ent):
+            print(format_name_from_ont(ent[0][0]))
+
+    elif question_num == 6:
+        country = format_name_to_ont(params["country"])
+
+        q = (
+            "SELECT ?bd WHERE {"
+            f"?president <{president_of}> <{DBPEDIA_BASE + country}> . "
+            f"?president <{birth_day}> ?bd ."
+            " }"
+        )
+
+        ent = list(graph.query(q))
+
+        if len(ent):
+            print(format_name_from_ont(ent[0][0]))
+        # ALL THE WAY...
     return ans
 
 
