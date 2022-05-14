@@ -14,7 +14,7 @@ from rdflib.namespace import DCTERMS, FOAF, RDF, SDO, XSD
 # GLOBALS AND CONSTANTS
 
 DOMAIN = "http://example.org/"
-global list_of_countries
+global list_of_countries, pre
 list_of_countries = set()
 DBPEDIA_BASE = "https://dbpedia.org/page/"
 
@@ -256,7 +256,6 @@ class Crawler:
         vp = data["vp"]
         capital = Literal(data["capital"])
         government = data["government"]
-
         if population not in (None, "None"):
             population = Literal(data["population"])
             g.add((country, population_of, population))
@@ -295,7 +294,7 @@ class Crawler:
 
         data = {
             "name": meta["name"],
-            "role": meta["role"],  # why we need this?
+            "role": meta["role"],
             "bday": bday,
             "bcountry": bcountry,
         }
@@ -327,6 +326,11 @@ def create():
     c = Crawler()
     c.run()
     g.serialize("graph.nt", format="nt")
+
+
+def adjust_str(s):
+    s = s.replace(' ', '_')
+    return s.capitalize()
 
 
 QUESTIONS = [
@@ -399,6 +403,17 @@ def answer(question_num: int, params: dict):
     print("The question num is:", question_num, )
     print("The params are:", params)
     graph = load_graph()
+    question_num += 1
+    print("The question num is:", question_num)
+    print("The params are:", params)
+    val = list(params.values())
+    for i in range(len(val)):
+        val[i] = adjust_str(val[i])
+    country = pre + val[0]
+    entity = pre + val[0]
+    if (len(params) > 1):
+        gf1 = pre + val[0]
+        gf2 = pre + val[1]
     ans = ""
 
     if question_num == 0:  # Who is the president of
@@ -444,7 +459,6 @@ def answer(question_num: int, params: dict):
             print("{:,}".format(ent[0][0].toPython()))
 
     elif question_num == 3:
-        # TODO: fix Luxembourg
         country = format_name_to_ont(params["country"])
 
         q = (
@@ -498,11 +512,55 @@ def answer(question_num: int, params: dict):
 
         if len(ent):
             print(format_name_from_ont(ent[0][0]))
-        # ALL THE WAY...
-    return ans
+
+    elif question_num == 7:
+        q = "SELECT ?y WHERE " \
+            "{ ?x <" + president_of + "> <" + country + "> ." \
+                                                        " ?x <" + birth_day + "> ?y " \
+                                                                              "}"
+    elif question_num == 7:
+        q = "SELECT ?y WHERE " \
+            "{ ?x <" + president_of + "> <" + country + "> ." \
+                                                        " ?x <" + birth_place + "> ?y " \
+                                                                                "}"
+    elif question_num == 8:
+        q = "SELECT ?y WHERE " \
+            "{ ?x <" + prime_minister_of + "> <" + country + "> ." \
+                                                             " ?x <" + birth_day + "> ?y " \
+                                                                                   "}"
+    elif question_num == 9:
+        q = "SELECT ?y WHERE " \
+            "{ ?x <" + prime_minister_of + "> <" + country + "> ." \
+                                                             " ?x <" + birth_place + "> ?y " \
+                                                                                     "}"
+    elif question_num == 10:
+        q = "SELECT ?x ?y WHERE " \
+            "{ <" + entity + "> <" + has_the_role_of + "> ?x ." \
+                                                       " <" + entity + "> <" + president_of + "> ?y .}"
+    elif question_num == 11:
+        q = "SELECT ?y WHERE { ?y <" + type_government_of + "> <" + \
+            gf1 + "> . ?y <" + type_government_of + "> <" + gf2 + "> .}"
+    elif question_num == 12:
+        pass
+    elif question_num == 13:
+        q = "SELECT ?y WHERE " \
+            "{ ?y <" + has_the_role_of + "> <" + president_of + "> ." \
+                                                                "?y <" + birth_place + "> <" + country + "> .}"
+
+    x = graph.query(q)
+
+    if 7 <= question_num <= 10:
+        print(list(x))
+    if question_num in (11, 13):
+        print(len(x))
+
+    # return ans
 
 
 def qna(question: str):
+    global g2
+    g2 = rdflib.Graph()
+    g2.parse("graph.nt", format="nt")
     for idx, q in enumerate(QUESTIONS):
         match = re.match(q['pattern'], question)
         if match:
