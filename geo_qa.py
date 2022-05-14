@@ -633,17 +633,17 @@ def run_demo_questions():
 
 
 if __name__ == "__main__":
-    run_demo_questions()
-    # if len(sys.argv) < 2:
-    #     print("Invalid usage: python3 geo_qa (create|question) [params]")
-    #     exit(1)
-    # if sys.argv[1] == "create":
-    #     create()
-    # elif sys.argv[1] == "question":
-    #     if len(sys.argv) < 3:
-    #         print("Invalid usage: python3 geo_qa question (question)")
-    #         exit(1)
-    #     qna(sys.argv[2])
-    # else:
-    #     print("Unknown command", sys.argv[1])
-    #     exit(1)
+    # run_demo_questions()
+    if len(sys.argv) < 2:
+        print("Invalid usage: python3 geo_qa (create|question) [params]")
+        exit(1)
+    if sys.argv[1] == "create":
+        create()
+    elif sys.argv[1] == "question":
+        if len(sys.argv) < 3:
+            print("Invalid usage: python3 geo_qa question (question)")
+            exit(1)
+        qna(sys.argv[2])
+    else:
+        print("Unknown command", sys.argv[1])
+        exit(1)
