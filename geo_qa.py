@@ -312,6 +312,7 @@ def Q9():
     x = g2.query(q)
     print (list(x))
 
+
 QUESTIONS = [
     # Q1
     {
@@ -394,6 +395,7 @@ def qna(question: str):
             print(ans)
             return
     print("Don't know...")
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
