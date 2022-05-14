@@ -418,6 +418,7 @@ def answer(question_num: int, params: dict):
     graph = load_graph()
 
     val = list(params.values())
+    subs = val[0]
     for i in range(len(val)):
         val[i] = adjust_str(val[i])
     country = DBPEDIA_BASE + val[0]
