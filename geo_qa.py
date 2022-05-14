@@ -211,7 +211,8 @@ class Crawler:
         country = rdflib.URIRef('https://dbpedia.org/page/' + country_name)
         if president_name not in (None, "None"):
             president_name = president_name.capitalize()
-            president = rdflib.URIRef('https://dbpedia.org/page/' + president_name)
+            president = rdflib.URIRef(
+                'https://dbpedia.org/page/' + president_name)
         else:
             president = None
         if pm_name not in (None, "None"):
@@ -287,7 +288,8 @@ class Crawler:
             b_country = Literal(data["bcountry"]).replace(' ', '_')
             b_country = b_country.capitalize()
             if b_country in list_of_countries:
-                b_country = rdflib.URIRef('https://dbpedia.org/page/' + b_country)
+                b_country = rdflib.URIRef(
+                    'https://dbpedia.org/page/' + b_country)
                 g.add((president, birth_place, b_country))
 
         print(data)
@@ -297,7 +299,6 @@ def create():
     c = Crawler()
     c.run()
     g.serialize("graph.nt", format="nt")
-
 
 def Q9():
     g2 =rdflib.Graph()
@@ -311,7 +312,6 @@ def Q9():
     "}"
     x = g2.query(q)
     print (list(x))
-
 
 QUESTIONS = [
     # Q1
