@@ -367,6 +367,7 @@ def answer(question_num: int, params: dict):
     print("The question num is:", question_num)
     print("The params are:", params)
     val = list(params.values())
+    subs = val[0]
     for i in range (len(val)):
         val[i] = adjust_str(val[i])
     country = pre + val[0]
@@ -416,7 +417,8 @@ def answer(question_num: int, params: dict):
     elif question_num == 12:
         q = "SELECT ?y WHERE { ?y <" + type_government_of + "> <" + gf1 + "> . ?y <" + type_government_of + "> <" + gf2 + "> .}"
     elif question_num == 13:
-        pass
+        q = "SELECT ?x ?y WHERE " \
+            "{ ?x <" + capital_of + "> ?y .}"
     elif question_num == 14:
         q = "SELECT ?y WHERE " \
             "{ ?y <" + has_the_role_of + "> <" + president_of + "> ." \
@@ -425,6 +427,14 @@ def answer(question_num: int, params: dict):
     x = g2.query(q)
     if question_num in (7,8,9,10,11):
         print(list(x))
+    if question_num == 13:
+        lst_str = list(x)
+        strings_with_substring = []
+        for i in lst_str:
+            a = i[1]
+            if (subs in i[1]):
+                strings_with_substring.append(i[0])
+        print(strings_with_substring)
     if question_num in (12,14):
         print(len(x))
 
