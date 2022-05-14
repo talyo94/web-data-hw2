@@ -55,9 +55,22 @@ def get_first_num(s: str):
     # some numbers are in the format: xxx.xxx.xxx
     # like indonesia population
     # so we check this pattern first to get a match.
-    res = re.findall(r"\d+\.\d\d\d[\.\d\d\d]*", s)
-    if res:
-        s = s.replace(".", "")
+    match = re.search("\d", s)
+    if match is None:
+        return None
+    s = s[match.start():]
+
+    res = re.search(r"^\d{1,3}((,\d{3})*)(\.\d+)?", s)
+    if res is not None:
+        n = float(res.group().replace(",", ""))
+        return int(n) if n.is_integer() else n
+
+    # For those using . as ,
+    res = re.search(r"^\d{1,3}((\.\d{3})*)(,\d+)?", s)
+
+    if res is not None:
+        n = float(res.group().replace(".", "").replace(",", "."))
+        return int(n) if n.is_integer() else n
     res = re.findall(r"\d+", s.replace(",", ""))
     if res:
         return int(res[0])
@@ -68,6 +81,11 @@ def extract_label_from_infobox(table, label: str):
     """Get a specific label from infobox"""
     text = table.xpath(f"./tbody/tr[th//text()='{label}']/td//text()")
     return list(filter(lambda x: x and x[0].isalpha(), text))
+
+
+def extract_government_type_from_infobox(table):
+    href = table.xpath(f"./tbody/tr[th//text()='Government']/td//a/@href")
+    return list(map(lambda x: x.rpartition("/")[-1], filter(lambda x: x and x.startswith("/wiki"), href)))
 
 
 def extract_link_from_infobox(table, label: str):
@@ -162,6 +180,7 @@ class Crawler:
 
     def start_parser(self, page, meta=None):
         """Parser for first page (countries list)"""
+
         table = page.xpath('//table[contains(@class, "wikitable")]')[0]
         for a in table.xpath("//tr/td[1]/span/a"):
             name = a.xpath("@title")[0]
@@ -178,11 +197,9 @@ class Crawler:
         infobox = page.xpath("//table[contains(@class, 'infobox')]")[0]
         data = {
             "country": meta['name'],
-            # TODO: check    Saint Helena, Ascension and Tristan da Cunha
-            "capital": next(iter(extract_label_from_infobox(infobox, "Capital")), None),
+            "capital":  extract_link_from_infobox(infobox, "Capital"),
             # "largest_city": next(iter(extract_label_from_infobox(infobox, "Largest city")), None),
-            # TODO: fix extracting labels
-            "government": extract_label_from_infobox(infobox, "Government"),
+            "government": extract_government_type_from_infobox(infobox),
             "area": next(iter(extract_merged_label_from_infobox(infobox, "Area ")), None),
             "population": next(iter(extract_merged_label_from_infobox(infobox, "Population")), None),
             "president": next(iter(extract_label_from_infobox(infobox, "President")), None),
@@ -191,10 +208,14 @@ class Crawler:
             # Different name for prime minister
             "premier": next(iter(extract_label_from_infobox(infobox, "Premier")), None),
         }
+        if data["capital"]:
+            data["capital"] = data["capital"].rpartition("/")[-1]
+        else:
+            print("NO CAPITAL FOR: ", meta)
         if data["area"]:
             data["area"] = get_first_num(data["area"])
         if data["population"]:
-            data["population"] = get_first_num(data["population"])
+            data["population"] = int(get_first_num(data["population"]))
 
         country_name = format_name_to_ont(data["country"])
         country = rdflib.URIRef(DBPEDIA_BASE + country_name)
@@ -420,7 +441,7 @@ def answer(question_num: int, params: dict):
         ent = list(graph.query(q))
 
         if len(ent):
-            print("{:,}".format(int(format_name_from_ont(ent[0][0]))))
+            print("{:,}".format(ent[0][0].toPython()))
 
     elif question_num == 3:
         # TODO: fix Luxembourg
@@ -435,8 +456,7 @@ def answer(question_num: int, params: dict):
         ent = list(graph.query(q))
 
         if len(ent):
-            print("{:,} km squared".format(
-                int(format_name_from_ont(ent[0][0]))))
+            print("{:,} km squared".format(ent[0][0].toPython()))
 
     elif question_num == 4:
         country = format_name_to_ont(params["country"])
