@@ -204,7 +204,6 @@ class Crawler:
 
     def start_parser(self, page, meta=None):
         """Parser for first page (countries list)"""
-
         # return
         table = page.xpath('//table[contains(@class, "wikitable")]')[0]
         for a in table.xpath("//tr/td[1]/span/a"):
@@ -224,6 +223,9 @@ class Crawler:
         #     {"name": "Dominican_Republic",
         #         "href": "https://en.wikipedia.org/wiki/Manasseh_Sogavare"}
         # )
+
+            # if name == "Mexico":
+            #     break
 
     def parse_state(self, page, meta=None):
         """Parser for country page"""
