@@ -125,6 +125,25 @@ def create_wiki_url(name: str):
     return f"https://en.wikipedia.org/wiki/{name}"
 
 
+def check_born_country(infobox):
+    born = infobox.xpath(f"./tbody/tr[th//text()='Born']/td")
+    if not born:
+        return None
+    # Check if a known country
+    links = born[0].xpath(".//a/@href")
+    for link in links:
+        c = link.rpartition("/")[-1]
+        if c in list_of_countries:
+            return c
+    text = born[0].xpath(".//text()")
+    for c in text:
+        if not re.search(r"[a-zA-Z]", c):
+            continue
+        c = format_name_to_ont(c.replace(r",", "").strip())
+        if c in list_of_countries:
+            return c
+
+
 class Crawler:
     start_url = "https://en.wikipedia.org/wiki/List_of_countries_by_population_(United_Nations)"
 
@@ -185,12 +204,6 @@ class Crawler:
 
     def start_parser(self, page, meta=None):
         """Parser for first page (countries list)"""
-        # self.enqueue_page(
-        #     "https://en.wikipedia.org/wiki/Dominican_Republic",
-        #     self.parse_state,
-        #     {"name": "Dominican_Republic",
-        #         "href": "https://en.wikipedia.org/wiki/Dominican_Republic"}
-        # )
         # return
         table = page.xpath('//table[contains(@class, "wikitable")]')[0]
         for a in table.xpath("//tr/td[1]/span/a"):
@@ -201,6 +214,15 @@ class Crawler:
                 self.parse_state,
                 {"name": name, "href": href}
             )
+            list_of_countries.add(href.rpartition("/")[-1])
+            # if name == "China":
+            #     break
+        # self.enqueue_page(
+        #     "https://en.wikipedia.org/wiki/Manasseh_Sogavare",
+        #     self.parse_person,
+        #     {"name": "Dominican_Republic",
+        #         "href": "https://en.wikipedia.org/wiki/Manasseh_Sogavare"}
+        # )
 
             # if name == "Mexico":
             #     break
@@ -293,24 +315,14 @@ class Crawler:
         """Parser for person (president/PM)"""
         # print("Parsing", meta)
         infobox = page.xpath("//table[contains(@class, 'infobox')]")[0]
-        born = infobox.xpath(f"./tbody/tr[th//text()='Born']/td")
+
         try:
-            bcountry = born[0].xpath(".//text()")[-1]
-            if bcountry.startswith("["):
-                bcountry = born[0].xpath(".//text()")[-2]
-            bcountry = re.sub(r"[\(\),\.]", "", bcountry)
-            bcountry = bcountry.strip()
-            if bcountry.startswith(","):
-                bcountry = re.findall(r"\w+", bcountry)[0]
-            if bcountry == "US":
-                bcountry = "United_States"
-            if bcountry not in list_of_countries:
-                bcountry = next((x for x in list_of_countries if x in "".join(
-                    born[0].xpath(".//text()"))), None)
-            if not bcountry and meta["country"] in "".join(born[0].xpath(".//text()")):
-                bcountry = meta["country"]
+            bcountry = check_born_country(infobox)
         except:
             bcountry = None
+
+        if bcountry is None:
+            print("---- No birth country for:", meta)
         bday = next(iter(infobox.xpath("//span[@class='bday']/text()")), None)
 
         data = {
@@ -528,7 +540,7 @@ def answer(question_num: int, params: dict):
 
     elif question_num == 11:
         gf1 = format_name_to_ont(params["government_form1"])
-        gf2 = format_name_to_ont(params["government_form1"])
+        gf2 = format_name_to_ont(params["government_form2"])
 
         q = (
             "SELECT ?y WHERE {"
@@ -572,7 +584,7 @@ def answer(question_num: int, params: dict):
         ans = ", ".join(x)
     elif question_num in (11, 13):
         ans = str(len(ent))
-    print("ANSWER:", ans)
+    print(ans)
 
 
 def qna(question: str):
