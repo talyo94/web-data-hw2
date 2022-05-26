@@ -1,3 +1,4 @@
+from urllib.parse import unquote
 from typing import Union
 import re
 import sys
@@ -11,6 +12,18 @@ import requests
 from rdflib import Literal, URIRef
 from rdflib.namespace import DCTERMS, FOAF, RDF, SDO, XSD
 
+def unquote_list(lst):
+    if lst:
+        for i in range(len(lst)):
+            lst[i] = unquote_u(lst[i])
+        return lst
+
+def unquote_u(source):
+    if source:
+        result = unquote(source)
+        if '%u' in result:
+            result = result.replace('%u','\\u').decode('unicode_escape')
+        return result
 # GLOBALS AND CONSTANTS
 
 DOMAIN = "http://example.org/"
@@ -233,9 +246,9 @@ class Crawler:
         infobox = page.xpath("//table[contains(@class, 'infobox')]")[0]
         data = {
             "country": meta['name'],
-            "capital":  extract_link_from_infobox(infobox, "Capital"),
+            "capital":  unquote_u(extract_link_from_infobox(infobox, "Capital")),
             # "largest_city": next(iter(extract_label_from_infobox(infobox, "Largest city")), None),
-            "government": extract_government_type_from_infobox(infobox),
+            "government": unquote_list(extract_government_type_from_infobox(infobox)),
             "area": next(iter(extract_merged_label_from_infobox(infobox, "Area", True)), None),
             "population": next(iter(extract_merged_label_from_infobox(infobox, "Population")), None),
             "president": next(iter(extract_label_from_infobox(infobox, "President")), None),
@@ -244,6 +257,8 @@ class Crawler:
             # Different name for prime minister
             "premier": next(iter(extract_label_from_infobox(infobox, "Premier")), None),
         }
+        if data["country"]=="Grenada":
+            print ("here")
         if data["capital"]:
             data["capital"] = data["capital"].rpartition("/")[-1]
         else:
@@ -292,7 +307,8 @@ class Crawler:
         population = data["population"]
         area = data["area"]
         vp = data["vp"]
-        capital = Literal(data["capital"])
+        if data["capital"]:
+            capital = Literal(data["capital"])
         government = data["government"]
         if population not in (None, "None"):
             population = Literal(data["population"])
@@ -303,7 +319,7 @@ class Crawler:
         if vp not in (None, "None"):
             vp = Literal(data["vp"])
             g.add((country, vp_of, vp))
-        if capital not in (None, "None"):
+        if capital:
             g.add((country, capital_of, capital))
         if government not in (None, "None"):
             for i in government:
@@ -416,6 +432,10 @@ QUESTIONS = [
     # Q14
     {
         "pattern": r"How many presidents were born in (?P<country>.+)\?"
+    },
+    # Q15
+    {
+        "pattern": r"How many countries with government form of (?P<government_form>.+) has vice president?"
     },
 ]
 
@@ -565,6 +585,14 @@ def answer(question_num: int, params: dict):
             f"?president <{birth_place}> <{DBPEDIA_BASE + country}>"
             " }"
         )
+    elif question_num == 14:
+        gf = format_name_to_ont(params["government_form"])
+        q = (
+            "SELECT ?y WHERE {"
+            f"?x <{type_government_of}> <{DBPEDIA_BASE + gf}> . "
+            f"?x <{vp_of}> ?y ."
+            " }"
+        )
 
     ent = list(graph.query(q))
     if question_num in (0, 1, 5, 6, 7, 8, 9):
@@ -582,7 +610,7 @@ def answer(question_num: int, params: dict):
             f"{format_name_from_ont(r).capitalize()} of {format_name_from_ont(c)}" for r, c in ent]
         x.sort()
         ans = ", ".join(x)
-    elif question_num in (11, 13):
+    elif question_num in (11, 13, 14):
         ans = str(len(ent))
     print(ans)
 
@@ -635,7 +663,10 @@ qs = [
     "Where was the prime minister of Solomon Islands born?",
     "When was the prime minister of Lesotho born?",
     "Who is Denis Sassou Nguesso?",
-    "Who is David Kabua?", ]
+    "Who is David Kabua?",
+    "How many countries with government form of Unitary state has vice president?",
+    "How many countries with government form of Semi-presidential system has vice president?",
+    ]
 
 
 def run_demo_questions():
@@ -645,7 +676,7 @@ def run_demo_questions():
 
 
 if __name__ == "__main__":
-    # run_demo_questions()
+    #run_demo_questions()
     if len(sys.argv) < 2:
         print("Invalid usage: python3 geo_qa (create|question) [params]")
         exit(1)
