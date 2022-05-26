@@ -257,8 +257,6 @@ class Crawler:
             # Different name for prime minister
             "premier": next(iter(extract_label_from_infobox(infobox, "Premier")), None),
         }
-        if data["country"]=="Grenada":
-            print ("here")
         if data["capital"]:
             data["capital"] = data["capital"].rpartition("/")[-1]
         else:
