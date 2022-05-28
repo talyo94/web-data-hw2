@@ -4,7 +4,6 @@ import re
 import sys
 from queue import Queue
 from typing import Any, Callable
-from webbrowser import BackgroundBrowser
 
 import lxml.html
 import rdflib
@@ -12,20 +11,23 @@ import requests
 from rdflib import Literal, URIRef
 from rdflib.namespace import DCTERMS, FOAF, RDF, SDO, XSD
 
+
 def unquote_list(lst):
     if lst:
         for i in range(len(lst)):
             lst[i] = unquote_u(lst[i])
         return lst
 
+
 def unquote_u(source):
     if source:
         result = unquote(source)
         if '%u' in result:
-            result = result.replace('%u','\\u').decode('unicode_escape')
+            result = result.replace('%u', '\\u').decode('unicode_escape')
         return result
-# GLOBALS AND CONSTANTS
 
+
+# GLOBALS AND CONSTANTS
 DOMAIN = "http://example.org/"
 global list_of_countries, pre
 list_of_countries = set()
@@ -34,7 +36,7 @@ DBPEDIA_BASE = "https://dbpedia.org/page/"
 # Graph Relations
 g = rdflib.Graph()
 president_of = URIRef('https://dbpedia.org/ontology/president')
-prime_minister_of = URIRef('https://dbpedia.org/ontology/PrimeMinister')
+prime_minister_of = URIRef('https://dbpedia.org/ontology/Prime_Minister')
 capital_of = URIRef('https://dbpedia.org/ontology/capital')
 type_government_of = URIRef('https://dbpedia.org/ontology/governmentType')
 area_of = URIRef('https://dbpedia.org/ontology/PopulatedPlace/area')
@@ -173,10 +175,11 @@ class Crawler:
             try:
                 page = self.download_page(task['url'])
                 task['handler'](page, task.get("meta"))
-            except Exception as e:
-                print("Error running task:", task["url"])
-                print(e)
-        print(f"Visited {len(self.visited)} pages")
+            except Exception:
+                pass
+                # print("Error running task:", task["url"])
+                # print(e)
+        # print(f"Visited {len(self.visited)} pages")
 
     def download_page(self, url: str):
         """download a url and returned the parsed lxml.html string
@@ -210,14 +213,12 @@ class Crawler:
             handler (Callable): _description_
         """
         if url in self.visited:
-            print("Already visited", url)
             return
         self.visited.add(url)
         self.queue.put({"url": url, "handler": handler, "meta": meta})
 
     def start_parser(self, page, meta=None):
         """Parser for first page (countries list)"""
-        # return
         table = page.xpath('//table[contains(@class, "wikitable")]')[0]
         for a in table.xpath("//tr/td[1]/span/a"):
             name = a.xpath("@title")[0]
@@ -228,21 +229,17 @@ class Crawler:
                 {"name": name, "href": href}
             )
             list_of_countries.add(href.rpartition("/")[-1])
-            # if name == "China":
+            # if name == "Russia":
             #     break
         # self.enqueue_page(
-        #     "https://en.wikipedia.org/wiki/Manasseh_Sogavare",
-        #     self.parse_person,
-        #     {"name": "Dominican_Republic",
-        #         "href": "https://en.wikipedia.org/wiki/Manasseh_Sogavare"}
+        #     "https://en.wikipedia.org/wiki/Vatican_City",
+        #     self.parse_state,
+        #     {"name": "Vatican_City",
+        #         "href": "https://en.wikipedia.org/wiki/Vatican_City"}
         # )
-
-            # if name == "Mexico":
-            #     break
 
     def parse_state(self, page, meta=None):
         """Parser for country page"""
-        # print("Parsing", meta)
         infobox = page.xpath("//table[contains(@class, 'infobox')]")[0]
         data = {
             "country": meta['name'],
@@ -259,8 +256,6 @@ class Crawler:
         }
         if data["capital"]:
             data["capital"] = data["capital"].rpartition("/")[-1]
-        else:
-            print("NO CAPITAL FOR: ", meta)
         if data["area"]:
             data["area"] = get_first_num(data["area"])
         if data["population"]:
@@ -305,6 +300,7 @@ class Crawler:
         population = data["population"]
         area = data["area"]
         vp = data["vp"]
+        capital = None
         if data["capital"]:
             capital = Literal(data["capital"])
         government = data["government"]
@@ -327,16 +323,14 @@ class Crawler:
 
     def parse_person(self, page, meta=None):
         """Parser for person (president/PM)"""
-        # print("Parsing", meta)
         infobox = page.xpath("//table[contains(@class, 'infobox')]")[0]
 
         try:
             bcountry = check_born_country(infobox)
         except:
             bcountry = None
-
-        if bcountry is None:
-            print("---- No birth country for:", meta)
+        # if bcountry is None:
+            # print("---- No birth country for:", meta)
         bday = next(iter(infobox.xpath("//span[@class='bday']/text()")), None)
 
         data = {
@@ -366,7 +360,7 @@ class Crawler:
 def create():
     c = Crawler()
     c.run()
-    g.serialize("graph.nt", format="nt")
+    g.serialize("graph.nt", format="nt", encoding="utf-8")
 
 
 def adjust_str(s):
@@ -619,9 +613,12 @@ def qna(question: str):
     for idx, q in enumerate(QUESTIONS):
         match = re.match(q['pattern'], question)
         if match:
-            answer(idx, match.groupdict())
+            try:
+                answer(idx, match.groupdict())
+            except Exception:
+                pass
             return
-    print("Don't know what question it is...")
+    print("Invalid question")
 
 
 qs = [
@@ -664,7 +661,7 @@ qs = [
     "Who is David Kabua?",
     "How many countries with government form of Unitary state has vice president?",
     "How many countries with government form of Semi-presidential system has vice president?",
-    ]
+]
 
 
 def run_demo_questions():
@@ -674,7 +671,6 @@ def run_demo_questions():
 
 
 if __name__ == "__main__":
-    #run_demo_questions()
     if len(sys.argv) < 2:
         print("Invalid usage: python3 geo_qa (create|question) [params]")
         exit(1)
