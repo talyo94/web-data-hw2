@@ -32,7 +32,7 @@ DOMAIN = "http://example.org/"
 global list_of_countries, pre
 list_of_countries = set()
 DBPEDIA_BASE = "https://dbpedia.org/page/"
-
+GRAPH_PATH = "ontology.nt"
 # Graph Relations
 g = rdflib.Graph()
 president_of = URIRef('https://dbpedia.org/ontology/president')
@@ -360,7 +360,7 @@ class Crawler:
 def create():
     c = Crawler()
     c.run()
-    g.serialize("graph.nt", format="nt", encoding="utf-8")
+    g.serialize(GRAPH_PATH, format="nt", encoding="utf-8")
 
 
 def adjust_str(s):
@@ -434,7 +434,7 @@ QUESTIONS = [
 
 def load_graph() -> rdflib.Graph:
     g = rdflib.Graph()
-    g.parse("graph.nt", format="nt")
+    g.parse(GRAPH_PATH, format="nt")
     return g
 
 
